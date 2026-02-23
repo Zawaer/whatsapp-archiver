@@ -3,7 +3,7 @@ WhatsApp msgstore.db → JSON parser.
 
 Reads a decrypted WhatsApp SQLite database and exports structured JSON
 with messages, replies, reactions, media references, group metadata, call logs,
-message edit history, and polls with votes.
+message edit history, polls with votes, and thumbnail previews.
 
 Usage:
   python parse_db.py                          # defaults: db/msgstore.db → output/archive.json
@@ -14,11 +14,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sqlite3
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 # ──────────────────────────────────────────────
 # WhatsApp message_type mapping (from schema inspection)
@@ -55,6 +57,38 @@ def ts_to_iso(ts_ms: int | None) -> str | None:
         return datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
     except (OSError, ValueError):
         return None
+
+
+def load_contacts_mapping(mapping_path: str = "contacts_mapping.json") -> dict[str, str]:
+    """Load phone number to contact name mapping from JSON file."""
+    if not os.path.isfile(mapping_path):
+        return {}
+    try:
+        with open(mapping_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def get_display_name(jid: str, contacts_mapping: dict[str, str]) -> str:
+    """Get human-readable name for a JID, preferring contact name if available."""
+    if not jid:
+        return "Unknown"
+    
+    # For group chats, use the group ID
+    if jid.endswith("@g.us"):
+        return jid
+    
+    # Extract phone number from JID (e.g., "358401234567@s.whatsapp.net" -> "358401234567")
+    phone = jid.split("@")[0] if "@" in jid else jid
+    
+    # Try with +, then without
+    for variant in [f"+{phone}", phone]:
+        if variant in contacts_mapping:
+            return contacts_mapping[variant]
+    
+    # Fallback to phone number
+    return phone
 
 
 def build_jid_map(cursor: sqlite3.Cursor) -> dict[int, str]:
@@ -252,6 +286,21 @@ def build_edit_history_map(cursor: sqlite3.Cursor) -> dict[int, dict]:
     return edits
 
 
+def build_thumbnails_map(cursor: sqlite3.Cursor) -> dict[int, str]:
+    """Build mapping from message row ID → base64-encoded thumbnail."""
+    cursor.execute("""
+        SELECT
+            message_row_id,
+            thumbnail
+        FROM message_thumbnail
+    """)
+    thumbnails: dict[int, str] = {}
+    for msg_id, thumb_blob in cursor.fetchall():
+        if thumb_blob:
+            thumbnails[msg_id] = base64.b64encode(thumb_blob).decode("utf-8")
+    return thumbnails
+
+
 def build_polls_map(cursor: sqlite3.Cursor, jid_map: dict[int, str]) -> dict[int, dict]:
     """Build mapping from message row ID → poll data with options and votes."""
     # Get poll metadata
@@ -329,6 +378,8 @@ def build_messages(
     media_map: dict[int, dict],
     edit_history_map: dict[int, dict],
     polls_map: dict[int, dict],
+    thumbnails_map: dict[int, str],
+    contacts_mapping: dict[str, str] | None = None,
 ) -> dict[int, list[dict]]:
     """Load all messages, grouped by chat_row_id."""
     cursor.execute("""
@@ -350,6 +401,8 @@ def build_messages(
     """)
 
     STATUS_MAP = {0: "received", 4: "sent", 5: "delivered", 6: "read", 13: "played"}
+    if contacts_mapping is None:
+        contacts_mapping = {}
 
     messages_by_chat: dict[int, list[dict]] = {}
     for row in cursor.fetchall():
@@ -369,7 +422,12 @@ def build_messages(
 
         # Sender (relevant in groups)
         if sender_jid_row_id and sender_jid_row_id in jid_map:
-            msg["sender_jid"] = jid_map[sender_jid_row_id]
+            sender_jid = jid_map[sender_jid_row_id]
+            msg["sender_jid"] = sender_jid
+            # Add human-readable sender name if available
+            sender_name = get_display_name(sender_jid, contacts_mapping)
+            if sender_name != sender_jid:  # Only add if we got a different name
+                msg["sender_name"] = sender_name
 
         # Received timestamp
         if recv_ts and recv_ts > 0:
@@ -395,6 +453,10 @@ def build_messages(
         if msg_id in polls_map:
             msg["poll"] = polls_map[msg_id]
 
+        # Thumbnail (base64-encoded preview image)
+        if msg_id in thumbnails_map:
+            msg["thumbnail"] = thumbnails_map[msg_id]
+
         messages_by_chat.setdefault(chat_row_id, []).append(msg)
 
     return messages_by_chat
@@ -405,7 +467,10 @@ def parse(db_path: str) -> dict:
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    print("Loading JID map...")
+    # Load contacts mapping for human-readable names
+    print("Loading contacts mapping...")
+    contacts_mapping = load_contacts_mapping()
+    print(f"  {len(contacts_mapping)} contacts loaded." if contacts_mapping else "  No contacts mapping found.")
     jid_map = build_jid_map(cursor)
     print(f"  {len(jid_map)} JIDs loaded.")
 
@@ -430,6 +495,10 @@ def parse(db_path: str) -> dict:
     media_map = build_media_map(cursor)
     print(f"  {len(media_map)} media entries loaded.")
 
+    print("Loading thumbnails...")
+    thumbnails_map = build_thumbnails_map(cursor)
+    print(f"  {len(thumbnails_map)} thumbnails loaded.")
+
     print("Loading call logs...")
     call_logs_map = build_call_logs_map(cursor, jid_map)
     total_calls = sum(len(v) for v in call_logs_map.values())
@@ -445,7 +514,7 @@ def parse(db_path: str) -> dict:
     print(f"  {len(polls_map)} polls loaded with {total_poll_votes} votes.")
 
     print("Loading messages...")
-    messages_by_chat = build_messages(cursor, jid_map, reactions_map, quoted_map, media_map, edit_history_map, polls_map)
+    messages_by_chat = build_messages(cursor, jid_map, reactions_map, quoted_map, media_map, edit_history_map, polls_map, thumbnails_map, contacts_mapping)
     total_messages = sum(len(v) for v in messages_by_chat.values())
     print(f"  {total_messages} messages loaded across {len(messages_by_chat)} chats.")
 
@@ -476,6 +545,7 @@ def parse(db_path: str) -> dict:
         "source_db": os.path.basename(db_path),
         "total_chats": len(chats),
         "total_messages": total_messages,
+        "contacts_count": len(contacts_mapping),
         "chats": chats,
     }
 
@@ -496,7 +566,7 @@ def main() -> None:
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     print(f"\nWriting to {args.out}...")
     with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(archive, f, ensure_ascii=False, indent=2)
+        json.dump(archive, f, ensure_ascii=False, indent=2, default=str)
 
     file_size_mb = os.path.getsize(args.out) / (1024 * 1024)
     print(f"Done! {archive['total_messages']} messages from {archive['total_chats']} chats exported ({file_size_mb:.1f} MB).")
