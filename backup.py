@@ -21,10 +21,10 @@ from src.vcf_to_contacts import parse_vcard_file
 from src.parse_db import parse
 
 ROOT = Path(__file__).parent
-DB_DIR = ROOT / "db"
+DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
 KEY_FILE = ROOT / "encrypted_backup.key"
-VCF_FILE = DB_DIR / "contacts.vcf"
+VCF_FILE = DATA_DIR / "contacts.vcf"
 
 
 def check_wadecrypt() -> None:
@@ -45,7 +45,7 @@ def main() -> None:
     print("=" * 40)
 
     check_wadecrypt()
-    DB_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(exist_ok=True)
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     # Key setup — runs automatically on first use
@@ -59,22 +59,22 @@ def main() -> None:
         print()
 
     # Validate required input files
-    crypt_files = sorted(DB_DIR.glob("*.crypt15"))
+    crypt_files = sorted(DATA_DIR.glob("*.crypt15"))
     if not crypt_files:
         sys.exit(
-            f"Error: No .crypt15 files found in {DB_DIR}/\n"
-            f"  Copy msgstore.db.crypt15 from your phone to {DB_DIR}/"
+            f"Error: No .crypt15 files found in {DATA_DIR}/\n"
+            f"  Copy msgstore.db.crypt15 from your phone to {DATA_DIR}/"
         )
 
     if not VCF_FILE.exists():
         sys.exit(
-            f"Error: contacts.vcf not found in {DB_DIR}/\n"
-            f"  Export contacts from your phone's Contacts app and copy to {DB_DIR}/"
+            f"Error: contacts.vcf not found in {DATA_DIR}/\n"
+            f"  Export contacts from your phone's Contacts app and copy to {DATA_DIR}/"
         )
 
     # Step 1 — Decrypt
     print("\nDecrypting database...")
-    decrypted = decrypt_databases(KEY_FILE, DB_DIR)
+    decrypted = decrypt_databases(KEY_FILE, DATA_DIR)
     db_path = next(
         (p for p in decrypted if p.name == "msgstore.db"), decrypted[0]
     )
