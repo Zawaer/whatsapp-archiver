@@ -1,2 +1,0 @@
-adb pull /storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Databases ./
-adb pull /storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Backups ./
