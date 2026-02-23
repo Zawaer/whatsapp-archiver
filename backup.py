@@ -5,12 +5,13 @@ WhatsApp Backup Exporter
 Decrypts a WhatsApp database backup, merges contact names from a VCF export,
 and writes the complete chat history to a single JSON archive.
 
-Required files in db/:
+Required files in data/:
     msgstore.db.crypt15   (encrypted WhatsApp backup)
     contacts.vcf          (exported from Android Contacts app)
 """
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -29,11 +30,7 @@ VCF_FILE = DATA_DIR / "contacts.vcf"
 
 def check_wadecrypt() -> None:
     """Ensure wa-crypt-tools is installed."""
-    try:
-        subprocess.run(
-            ["wadecrypt", "--version"], capture_output=True, check=True
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    if not shutil.which("wadecrypt"):
         sys.exit(
             "Error: wadecrypt not found.\n"
             "  Install with: pip install wa-crypt-tools"
