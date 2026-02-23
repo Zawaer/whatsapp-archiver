@@ -2,4 +2,5 @@
 *.crypt15
 *.db
 *.key
+*.vcf
 output/
