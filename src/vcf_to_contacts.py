@@ -1,19 +1,7 @@
-#!/usr/bin/env python3
-"""
-Parse vCard (VCF) file exported from Android Contacts app.
+"""Parse a vCard (VCF) file into a phone-number → contact-name mapping."""
 
-Usage:
-  python vcf_to_contacts.py [--vcf db/contacts.vcf] [--out contacts_mapping.json]
-
-Extracts phone number → contact name mapping and saves to JSON.
-"""
-
-import argparse
-import json
 import os
 import re
-import sys
-from pathlib import Path
 
 
 def decode_quoted_printable(text: str) -> str:
@@ -113,39 +101,3 @@ def parse_vcard_file(vcf_path: str) -> dict[str, str]:
                 mapping[phone] = name
     
     return mapping
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse vCard contacts and export to JSON mapping.")
-    parser.add_argument("--vcf", default="db/contacts.vcf", help="Path to VCF contacts file")
-    parser.add_argument("--out", default="contacts_mapping.json", help="Output JSON file path")
-    args = parser.parse_args()
-    
-    print("Parsing VCF contacts file...")
-    mapping = parse_vcard_file(args.vcf)
-    
-    if not mapping:
-        print("⚠️  No contacts found in VCF file.")
-        sys.exit(1)
-    
-    # Write to JSON
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(mapping, f, ensure_ascii=False, indent=2)
-    
-    print(f"✅ Exported {len(mapping)} phone number mappings to {args.out}")
-    
-    # Show sample
-    sample_items = list(mapping.items())[:5]
-    if sample_items:
-        print("   Sample entries:")
-        for phone, name in sample_items:
-            print(f"     {phone} → {name}")
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"Error: {error}")
-        sys.exit(1)

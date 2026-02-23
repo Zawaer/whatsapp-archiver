@@ -1,26 +1,16 @@
-"""
-WhatsApp msgstore.db → JSON parser.
+"""WhatsApp msgstore.db → JSON parser.
 
-Reads a decrypted WhatsApp SQLite database and exports structured JSON
+Reads a decrypted WhatsApp SQLite database and produces a structured dict
 with messages, replies, reactions, media references, group metadata, call logs,
 message edit history, polls with votes, and thumbnail previews.
-
-Usage:
-  python parse_db.py                          # defaults: db/msgstore.db → output/archive.json
-  python parse_db.py --db path/to/msgstore.db
-  python parse_db.py --out path/to/output.json
 """
 
 from __future__ import annotations
 
-import argparse
 import base64
-import json
 import os
 import sqlite3
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 # ──────────────────────────────────────────────
 # WhatsApp message_type mapping (from schema inspection)
@@ -58,16 +48,6 @@ def ts_to_iso(ts_ms: int | None) -> str | None:
     except (OSError, ValueError):
         return None
 
-
-def load_contacts_mapping(mapping_path: str = "contacts_mapping.json") -> dict[str, str]:
-    """Load phone number to contact name mapping from JSON file."""
-    if not os.path.isfile(mapping_path):
-        return {}
-    try:
-        with open(mapping_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return {}
 
 
 def get_display_name(jid: str, contacts_mapping: dict[str, str]) -> tuple[str, bool]:
@@ -466,15 +446,15 @@ def build_messages(
     return messages_by_chat
 
 
-def parse(db_path: str) -> dict:
+def parse(db_path: str, contacts_mapping: dict[str, str] | None = None) -> dict:
     """Parse the WhatsApp database and return the full archive dict."""
+    if contacts_mapping is None:
+        contacts_mapping = {}
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Load contacts mapping for human-readable names
-    print("Loading contacts mapping...")
-    contacts_mapping = load_contacts_mapping()
-    print(f"  {len(contacts_mapping)} contacts loaded." if contacts_mapping else "  No contacts mapping found.")
+    print(f"  {len(contacts_mapping)} contacts loaded.")
     jid_map = build_jid_map(cursor)
     print(f"  {len(jid_map)} JIDs loaded.")
 
@@ -554,27 +534,3 @@ def parse(db_path: str) -> dict:
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse decrypted WhatsApp msgstore.db to JSON.")
-    parser.add_argument("--db", default="db/msgstore.db", help="Path to decrypted msgstore.db")
-    parser.add_argument("--out", default="output/archive.json", help="Output JSON file path")
-    args = parser.parse_args()
-
-    if not os.path.isfile(args.db):
-        print(f"Error: Database not found at {args.db}")
-        print("Run decryption.py first to decrypt the database.")
-        sys.exit(1)
-
-    archive = parse(args.db)
-
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    print(f"\nWriting to {args.out}...")
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(archive, f, ensure_ascii=False, indent=2, default=str)
-
-    file_size_mb = os.path.getsize(args.out) / (1024 * 1024)
-    print(f"Done! {archive['total_messages']} messages from {archive['total_chats']} chats exported ({file_size_mb:.1f} MB).")
-
-
-if __name__ == "__main__":
-    main()

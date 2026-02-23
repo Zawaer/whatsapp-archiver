@@ -1,36 +1,25 @@
-import glob
-import os
+"""Decrypt WhatsApp .crypt15 backup files using wadecrypt."""
+
 import subprocess
-import sys
+from pathlib import Path
 
 
-KEY_FILE = "encrypted_backup.key"
+def decrypt_databases(key_path: Path, db_dir: Path) -> list[Path]:
+    """Decrypt all .crypt15 files in db_dir. Returns paths to decrypted files."""
+    crypt_files = sorted(db_dir.glob("*.crypt15"))
+    if not crypt_files:
+        raise FileNotFoundError(f"No .crypt15 files found in {db_dir}/")
 
+    decrypted: list[Path] = []
+    for encrypted in crypt_files:
+        output = encrypted.with_suffix("")
+        print(f"  Decrypting {encrypted.name}...")
+        subprocess.run(
+            ["wadecrypt", str(key_path), str(encrypted), str(output)],
+            check=True,
+            capture_output=True,
+        )
+        print(f"  ✓ {output.name}")
+        decrypted.append(output)
 
-def main():
-  if not os.path.isfile(KEY_FILE):
-    raise FileNotFoundError(
-      f"Missing {KEY_FILE}. Run key_setup.py first to create it."
-    )
-
-  crypt15_files = glob.glob("db/*.crypt15")
-  if not crypt15_files:
-    print("Warning: No .crypt15 files found in the db directory.")
-    return
-  
-  for encrypted_file in crypt15_files:
-    decrypted_file = os.path.splitext(encrypted_file)[0]
-    print(f"Decrypting {encrypted_file} to {decrypted_file}")
-    subprocess.run(
-      ["wadecrypt", KEY_FILE, encrypted_file, decrypted_file],
-      check=True,
-    )
-    print(f"✓ {encrypted_file}")
-
-
-if __name__ == "__main__":
-  try:
-    main()
-  except Exception as error:
-    print(f"Error: {error}")
-    sys.exit(1)
+    return decrypted

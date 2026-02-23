@@ -1,30 +1,30 @@
+"""Create encrypted_backup.key from a WhatsApp hex key."""
+
 import re
 import subprocess
-import sys
-
+from pathlib import Path
 
 HEX_KEY_LENGTH = 64
 
 
-def main() -> None:
-  raw_key = input("Paste your 64-character WhatsApp hex key: ").strip()
-  trimmed_key = re.sub(r"[^0-9a-fA-F]", "", raw_key)
+def create_key() -> Path:
+    """Prompt for the 64-char hex key and generate encrypted_backup.key."""
+    raw = input("Paste your 64-character WhatsApp hex key: ").strip()
+    cleaned = re.sub(r"[^0-9a-fA-F]", "", raw)
 
-  if not trimmed_key:
-    raise ValueError("Missing key input.")
+    if not cleaned:
+        raise ValueError("No hex characters found in input.")
 
-  if len(trimmed_key) != HEX_KEY_LENGTH:
-    raise ValueError(
-      f"Invalid key length: expected {HEX_KEY_LENGTH} hex characters, got {len(trimmed_key)}."
-    )
+    if len(cleaned) != HEX_KEY_LENGTH:
+        raise ValueError(
+            f"Expected {HEX_KEY_LENGTH} hex characters, got {len(cleaned)}."
+        )
 
-  subprocess.run(["wacreatekey", "--hex", trimmed_key], check=True)
-  print("encrypted_backup.key created successfully.")
+    subprocess.run(["wacreatekey", "--hex", cleaned], check=True)
 
+    key_path = Path("encrypted_backup.key")
+    if not key_path.exists():
+        raise RuntimeError("wacreatekey did not produce encrypted_backup.key.")
 
-if __name__ == "__main__":
-  try:
-    main()
-  except Exception as error:
-    print(f"Error: {error}")
-    sys.exit(1)
+    print("encrypted_backup.key created successfully.")
+    return key_path
