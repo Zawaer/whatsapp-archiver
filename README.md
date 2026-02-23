@@ -1,4 +1,4 @@
-# WhatsApp Backup Exporter (Android, No Root)
+# WhatsApp Backup Exporter
 
 Export and decrypt WhatsApp Android backups into machine-readable files for long-term personal archiving.
 
@@ -6,7 +6,7 @@ This project is designed for people who want to preserve memories and chat histo
 
 ## Why this project?
 
-WhatsApp’s built-in **Export Chat** is useful for quick sharing, but it is not archival-grade:
+WhatsApp’s built-in Export Chat is useful for quick sharing, but it is not archival-grade:
 - Loses rich structure (replies, reactions, metadata context)
 - Manual per-chat workflow
 - Incomplete media handling
@@ -17,7 +17,7 @@ This project focuses on:
 - Timestamps and metadata
 - Media references and files
 - Group/chat metadata
-- Local-first workflow without root
+- Local-first workflow without device rooting
 
 ## Approach
 
@@ -121,16 +121,6 @@ This gives high data completeness with minimal operational risk.
 - Requires physically connecting phone when extracting data
 - Depends on backup file compatibility (`.crypt15` and related tooling)
 - Parser/viewer is still in progress
-
-## Contributing
-
-Contributions are welcome, especially for:
-- parser development
-- schema documentation for WhatsApp DB tables
-- local viewer UX
-- packaging/automation scripts
-
-Please open issues/PRs with reproducible steps and sample (sanitized) metadata where possible.
 
 ## Disclaimer
 
