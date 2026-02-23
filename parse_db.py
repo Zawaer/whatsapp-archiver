@@ -70,14 +70,18 @@ def load_contacts_mapping(mapping_path: str = "contacts_mapping.json") -> dict[s
         return {}
 
 
-def get_display_name(jid: str, contacts_mapping: dict[str, str]) -> str:
-    """Get human-readable name for a JID, preferring contact name if available."""
+def get_display_name(jid: str, contacts_mapping: dict[str, str]) -> tuple[str, bool]:
+    """
+    Get human-readable name for a JID.
+    
+    Returns: (name, found_in_contacts)
+    """
     if not jid:
-        return "Unknown"
+        return ("Unknown", False)
     
     # For group chats, use the group ID
     if jid.endswith("@g.us"):
-        return jid
+        return (jid, False)
     
     # Extract phone number from JID (e.g., "358401234567@s.whatsapp.net" -> "358401234567")
     phone = jid.split("@")[0] if "@" in jid else jid
@@ -85,10 +89,10 @@ def get_display_name(jid: str, contacts_mapping: dict[str, str]) -> str:
     # Try with +, then without
     for variant in [f"+{phone}", phone]:
         if variant in contacts_mapping:
-            return contacts_mapping[variant]
+            return (contacts_mapping[variant], True)
     
     # Fallback to phone number
-    return phone
+    return (phone, False)
 
 
 def build_jid_map(cursor: sqlite3.Cursor) -> dict[int, str]:
@@ -425,8 +429,8 @@ def build_messages(
             sender_jid = jid_map[sender_jid_row_id]
             msg["sender_jid"] = sender_jid
             # Add human-readable sender name if available
-            sender_name = get_display_name(sender_jid, contacts_mapping)
-            if sender_name != sender_jid:  # Only add if we got a different name
+            sender_name, found_in_contacts = get_display_name(sender_jid, contacts_mapping)
+            if found_in_contacts:  # Only add if we found it in contacts
                 msg["sender_name"] = sender_name
 
         # Received timestamp
