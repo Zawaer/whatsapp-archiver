@@ -2,3 +2,4 @@
 *.crypt15
 *.db
 *.key
+output/
