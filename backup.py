@@ -20,6 +20,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
 
 def check_requirements() -> bool:
     """Check if required tools are installed."""
@@ -47,8 +50,8 @@ def setup_key() -> None:
     print()
     
     # Import and run key setup
-    import key_setup as key_setup_module
-    key_setup_module.main()
+    import key_setup
+    key_setup.main()
 
 
 def decrypt_database() -> bool:
@@ -95,9 +98,9 @@ def export_contacts() -> bool:
         print("   3. Transfer to db/ folder")
         return True  # Continue anyway, contacts optional
     
-    import vcf_to_contacts as vcf_module
+    import vcf_to_contacts
     
-    mapping = vcf_module.parse_vcard_file(str(vcf_path))
+    mapping = vcf_to_contacts.parse_vcard_file(str(vcf_path))
     if not mapping:
         print("⚠️  No contacts found in VCF file")
         return True
@@ -120,10 +123,10 @@ def parse_database() -> bool:
         print("   Make sure decryption step completed successfully")
         return False
     
-    import parse_db as parse_module
+    import parse_db
     
     try:
-        archive = parse_module.parse(str(db_path))
+        archive = parse_db.parse(str(db_path))
         
         output_path = Path("output/archive.json")
         with open(output_path, "w", encoding="utf-8") as f:
