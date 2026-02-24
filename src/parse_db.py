@@ -436,6 +436,8 @@ def build_messages(
         # Poll data
         if msg_id in polls_map:
             msg["poll"] = polls_map[msg_id]
+            # Override type if we have poll data (WhatsApp DB sometimes marks polls as type 66)
+            msg["type"] = "poll"
 
         # Thumbnail (base64-encoded preview image)
         if msg_id in thumbnails_map:
